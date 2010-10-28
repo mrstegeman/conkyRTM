@@ -10,4 +10,4 @@ Basic Usage:
 
 Conky Usage:
 
-${execpi 3600 perl /path/to/conkyRTM.pl -u USER -p PASS options}
+${execpi 3600 perl /path/to/conkyRTM.pl -u USER -p PASS [options]}
