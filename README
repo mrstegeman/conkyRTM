@@ -1,0 +1,13 @@
+Description:
+
+conkyRTM can be used to output one or several task list(s) from Remember the Milk into Conky, with formatting. 
+
+
+Basic Usage:
+
+conkyRTM.pl -u USER -p PASSWORD
+
+
+Conky Usage:
+
+${execpi 3600 perl /path/to/conkyRTM.pl -u USER -p PASS options}
