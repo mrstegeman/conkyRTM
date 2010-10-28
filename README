@@ -5,7 +5,7 @@ conkyRTM can be used to output one or several task list(s) from Remember the Mil
 
 Basic Usage:
 
-conkyRTM.pl -u USER -p PASSWORD
+./conkyRTM.pl -u USER -p PASSWORD
 
 
 Conky Usage:
