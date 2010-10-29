@@ -1,26 +1,27 @@
 #!/usr/bin/perl
-# -------------------------------------------------------------------------------------------------------
-# Copyright (C) 2010 Michael Stegeman <musicmastamike@gmail.com>
-# Last Revision: Sep 12, 2010
-# -------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Copyright (C) 2010 Mike Stegeman <musicmastamike@gmail.com>
+# Last Revision: Oct 29, 2010
+# -----------------------------------------------------------------------------
 #
-# Description: This script fetches an RTM (http://www.rememberthemilk.com) user's tasks
-#              and ouputs them for use with Conky (http://conky.sourceforge.net)
+# Description:
+#   This script fetches an RTM (http://www.rememberthemilk.com) user's tasks
+#   and ouputs them for use with Conky (http://conky.sourceforge.net)
 #
 # Required Modules:
-#       XML::Twig -
-#           http://search.cpan.org/~mirod/XML-Twig-3.35/Twig.pm
-#       HTML::Entities -
-#           http://search.cpan.org/~gaas/HTML-Parser-3.68/lib/HTML/Entities.pm
-#       Date::Calc -
-#           http://search.cpan.org/~stbey/Date-Calc-6.3/lib/Date/Calc.pod
-#       DateTime -
-#           http://search.cpan.org/~drolsky/DateTime-0.61/lib/DateTime.pm
-#       DateTime::Format::Strptime -
-#           http://search.cpan.org/~drolsky/DateTime-Format-Strptime-1.4000/lib/DateTime/Format/Strptime.pm
+#   XML::Twig -
+#       http://search.cpan.org/~mirod/XML-Twig/Twig.pm
+#   HTML::Entities -
+#       http://search.cpan.org/~gaas/HTML-Parser-3.68/lib/HTML/Entities.pm
+#   Date::Calc -
+#       http://search.cpan.org/~stbey/Date-Calc-6.3/lib/Date/Calc.pod
+#   DateTime -
+#       http://search.cpan.org/~drolsky/DateTime/lib/DateTime.pm
+#   DateTime::Format::Strptime -
+#       http://search.cpan.org/~drolsky/DateTime-Format-Strptime/lib/DateTime/Format/Strptime.pm
 #
-#       Note: These modules may be available through user repositories
-# -------------------------------------------------------------------------------------------------------
+#   Note: These modules may be available through user repositories
+# -----------------------------------------------------------------------------
 
 use warnings;
 use strict;
@@ -28,13 +29,16 @@ use Pod::Usage;
 use XML::Twig;
 use HTML::Entities;
 use Getopt::Long qw(:config pass_through);
-use Date::Calc qw(Today_and_Now Date_to_Days Add_Delta_Days Day_of_Week Month_to_Text English_Ordinal Day_of_Week_Abbreviation);
+use Date::Calc qw(Today_and_Now Date_to_Days Add_Delta_Days Day_of_Week
+                  Month_to_Text English_Ordinal Day_of_Week_Abbreviation);
 use DateTime::Format::Strptime;
 
 # Initializations
-my ($user, $pass, $days, $black_lists, $white_lists, $inc_tags, $exc_tags, $priorities, $strp1, $strp2, $strp3, $strp4, $help, $man);
-our ($hcolor, $hindent, $tcolor, $tindent, $time, $estimate, $priority, $alignr, $eindent, $overdue, $miltime,
-    $alignc, $font, @tasks, $location,@wtags, @btags, @wlists, @blists, $not_due, @pri_list, $noheaders);
+my ($user, $pass, $days, $black_lists, $white_lists, $inc_tags, $exc_tags,
+    $priorities, $strp1, $strp2, $strp3, $strp4, $help, $man);
+our ($hcolor, $hindent, $tcolor, $tindent, $time, $estimate, $priority,
+     $alignr, $eindent, $overdue, $miltime, $alignc, $font, @tasks, $location,
+     @wtags, @btags, @wlists, @blists, $not_due, @pri_list, $noheaders);
 
 $tcolor = $hcolor = $hindent = $tindent = $eindent = '';
 
@@ -42,7 +46,7 @@ $tcolor = $hcolor = $hindent = $tindent = $eindent = '';
 # Get integer equivalent of today's date
 our ($ano, $mes, $dia, $hora, $minuto, $segundo) = Today_and_Now();
 our $today = Date_to_Days($ano, $mes, $dia);
-our $now = $hora*60 + $minuto;
+our $now = $hora * 60 + $minuto;
 
 # Get all options from command line
 GetOptions(
@@ -76,7 +80,8 @@ GetOptions(
 
 # Check for required inputs
 pod2usage(-verbose => 2) && exit if $man;
-pod2usage(-verbose => 1) && exit if $help or not defined $user or not defined $pass or defined $ARGV[0];
+pod2usage(-verbose => 1) && exit if ($help or not defined $user or
+                                     not defined $pass or defined $ARGV[0]);
 
 # Fix color representation
 if ($tcolor ne '') {
@@ -97,7 +102,9 @@ if ($hcolor ne '') {
 }
 
 # Get atom feed
-my $xml = `wget -O - -q --no-cache --http-user=$user --http-password=$pass http://www.rememberthemilk.com/atom/$user/`;
+my $wget_cmd = "wget -O - -q --no-cache --http-user=$user " .
+    "--http-password=$pass http://www.rememberthemilk.com/atom/$user/";
+my $xml = `$wget_cmd`;
 if (not defined $xml or $xml eq '') {
     print "${hcolor}Could not connect to network.\n";
     exit;
@@ -134,7 +141,10 @@ $strp4 = new DateTime::Format::Strptime(pattern => $pat);
 @pri_list = split(/,/, $priorities) if defined $priorities;
 
 # Parse atom feed
-my $twig = new XML::Twig(keep_encoding => 1, twig_handlers => { entry => \&entry });
+my $twig = new XML::Twig(keep_encoding => 1,
+                         twig_handlers => {
+                             entry => \&entry,
+                         });
 my $tree = $twig->parse($xml);
 
 # Check for font settings
@@ -153,11 +163,14 @@ foreach (0 .. ($days - 1)) {
 sub entry {
     # Initializations
     my ($twig, $entry) = @_;
-    my ($title, $due, $due_time, $day, @d, $delta, $tags, $loc, $list, $pri, $est);
+    my ($title, $due, $due_time, $day, @d, $delta, $tags,
+        $loc, $list, $pri, $est);
 
     # Loop through elements in entry, look for necessary task info
     while ($entry = $entry->next_elt()) {
-        if (defined $title and defined $delta and defined $due and defined $est and defined $pri and defined $list and defined $loc and defined $tags) {
+        if (defined $title and defined $delta and defined $due and
+            defined $est and defined $pri and defined $list and
+            defined $loc and defined $tags) {
             # Push new task onto list - list is sorted by due date already
             push(@tasks, {
                     title => $title,
@@ -169,7 +182,8 @@ sub entry {
                     location => $loc,
                     tags => $tags
                 });
-            $title = $due = $day = $delta = $tags = $loc = $list = $pri = $est = undef;
+            $title = $due = $day = $delta = $tags = $loc =
+                                                $list = $pri = $est = undef;
         }
 
         # Task title
@@ -188,7 +202,9 @@ sub entry {
                     @d = split(/ /, $strp3->format_datetime($day));
                     $delta = Date_to_Days($d[0], $d[1], $d[2]) - $today;
                     $due_time = $day->hour()*60 + $day->minute();
-                    if ($delta < 0 or ($delta == 0 and ($due_time - $now) < 0)) {
+                    if ($delta < 0 or
+                        ($delta == 0 and
+                            ($due_time - $now) < 0)) {
                         $delta = "od";
                     }
                 }
@@ -297,7 +313,9 @@ sub get_tasks {
             ++$count;
             my $str = $tcolor;
             # Check if user wants due times
-            if ($time and $task->{'due'} ne "none" and $task->{'delta'} ne "od") {
+            if ($time and $task->{'due'} ne "none" and
+                $task->{'delta'} ne "od") {
+
                 $str .= "$task->{'due'} - ";
             }
             $str .= $task->{'title'};
@@ -381,7 +399,8 @@ sub format_header {
     else {
         my ($year, $month, $day) = Add_Delta_Days($ano, $mes, $dia, $delta);
         $str = $hcolor . sprintf("Tasks Due on %s, %.3s %s:",
-                                    Day_of_Week_Abbreviation(Day_of_Week($year,$month,$day)),
+                                    Day_of_Week_Abbreviation(
+                                        Day_of_Week($year,$month,$day)),
                                     Month_to_Text($month),
                                     English_Ordinal($day));
     }
@@ -408,7 +427,7 @@ __END__
 
 =head1 SYNOPSIS
 
- conkyRTM.pl -u USER -p PASSWORD
+ ./conkyRTM.pl -u USER -p PASSWORD [options]
 
 =head1 DESCRIPTION
 
@@ -430,35 +449,42 @@ __END__
  -e, --estimate          Show task's time estimate in output.
  -y, --priority          Show task's priority in output.
  -l, --location          Show task's location in output.
- --tcolor=COLOR          Specify color for tasks. COLOR can be given as a word,
-                         i.e. blue, as hex, i.e. 0000ff, or as colorN as in Conky
- --hcolor=COLOR          Specify color for day headers. COLOR can be given as a word,
-                         i.e. blue, as hex, i.e. 0000ff, or as colorN as in Conky
+ --tcolor=COLOR          Specify color for tasks. COLOR can be given as a
+                         word, i.e. blue, as hex, i.e. 0000ff, or as
+                         colorN as in Conky
+ --hcolor=COLOR          Specify color for day headers. COLOR can be
+                         given as a word, i.e. blue, as hex, i.e. 0000ff,
+                         or as colorN as in Conky
  --tindent=N             Specify number of spaces to indent tasks.
  --hindent=N             Specify number of spaces to indent day headers.
- --eindent=N             Specify number of spaces to indent extra task information,
-                         i.e. location, estimate, or priority.
+ --eindent=N             Specify number of spaces to indent extra task
+                         information, i.e. location, estimate, or
+                         priority.
  -r, --alignr            Right-align output in Conky
  -c, --alignc            Center-align output in Conky
- -f FONT, --font=FONT    Specify font to be used for output. FONT should be in one of the
-                         following formats:
+ -f FONT, --font=FONT    Specify font to be used for output. FONT should
+                         be in one of the following formats:
                             --> font_name
                             --> font_name:size=SIZE
                             --> :size=SIZE
                          NOTE: SIZE is an integer
  -n, --not-due           Include tasks without a due date in output
  -o, --overdue           Include overdue tasks
- --include-tags=TAGS     Include only tasks matching specified tags in output. TAGS is a
-                         comma separated list, i.e. tag1,tag2,tag3.
- --ignore-tags=TAGS      Exclude all tasks matching specified tags from output. TAGS is a
-                         comma separated list, i.e. tag1,tag2,tag3.
- --white-lists=LISTS     Include only tasks in specified lists in output. LISTS is a comma
-                         separated list, i.e. list1,list2,list3.
- --black-lists=LISTS     Exclude all tasks in specified lists from output. LISTS is a comma
-                         separated list, i.e. list1,list2,list3.
- --priorities=PRIORITIES Include only tasks matching specified priorities in output.
-                         PRIORITIES is a comma separated list. Valid priorities are
-                         pri1, pri2, pri3, none
+ --include-tags=TAGS     Include only tasks matching specified tags in
+                         output. TAGS is a comma separated list, i.e.
+                         tag1,tag2,tag3
+ --ignore-tags=TAGS      Exclude all tasks matching specified tags from
+                         output. TAGS is a comma separated list, i.e.
+                         tag1,tag2,tag3
+ --white-lists=LISTS     Include only tasks in specified lists in output.
+                         LISTS is a comma separated list, i.e.
+                         list1,list2,list3
+ --black-lists=LISTS     Exclude all tasks in specified lists from
+                         output. LISTS is a comma separated list, i.e.
+                         list1,list2,list3
+ --priorities=PRIORITIES Include only tasks matching specified priorities
+                         in output. PRIORITIES is a comma separated list.
+                         Valid priorities are pri1, pri2, pri3, none
  --no-headers            Don't show day headers.
  -l, --location          Show location of tasks in output
  --24-hour               Show due times in 24 hour format
@@ -467,7 +493,7 @@ __END__
 
 =head1 AUTHOR
 
- Michael Stegeman
+ Mike Stegeman
 
 =head1 LICENSE
 
