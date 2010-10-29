@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 # -----------------------------------------------------------------------------
-# Copyright (C) 2010 Mike Stegeman <musicmastamike@gmail.com>
+# Copyright (C) 2010 Mike Stegeman <mrstegeman@gmail.com>
 # Last Revision: Oct 29, 2010
 # -----------------------------------------------------------------------------
 #
@@ -9,8 +9,6 @@
 #   and ouputs them for use with Conky (http://conky.sourceforge.net)
 #
 # Required Modules:
-#   XML::Twig -
-#       http://search.cpan.org/~mirod/XML-Twig/Twig.pm
 #   HTML::Entities -
 #       http://search.cpan.org/~gaas/HTML-Parser-3.68/lib/HTML/Entities.pm
 #   Date::Calc -
@@ -26,7 +24,6 @@
 use warnings;
 use strict;
 use Pod::Usage;
-use XML::Twig;
 use HTML::Entities;
 use Getopt::Long qw(:config pass_through);
 use Date::Calc qw(Today_and_Now Date_to_Days Add_Delta_Days Day_of_Week
@@ -141,11 +138,7 @@ $strp4 = new DateTime::Format::Strptime(pattern => $pat);
 @pri_list = split(/,/, $priorities) if defined $priorities;
 
 # Parse atom feed
-my $twig = new XML::Twig(keep_encoding => 1,
-                         twig_handlers => {
-                             entry => \&entry,
-                         });
-my $tree = $twig->parse($xml);
+&parse($xml);
 
 # Check for font settings
 print "\${font $font}" if defined $font;
@@ -159,92 +152,67 @@ foreach (0 .. ($days - 1)) {
 &get_tasks('inf') if $not_due;
 
 
-# Handles all <entry> tags in feed - These define individual tasks
-sub entry {
-    # Initializations
-    my ($twig, $entry) = @_;
-    my ($title, $due, $due_time, $day, @d, $delta, $tags,
-        $loc, $list, $pri, $est);
+# Parses atom feed
+sub parse {
+    my $rtm_re = qr/<entry>.+?<title type=\"html\">(.+?)<\/title>.+?\"/ .
+                 qr/rtm_due_value\">(.+?)<\/span>.+?\"/ .
+                 qr/rtm_priority_value\">(.+?)<\/span>.+?\"/ .
+                 qr/rtm_time_estimate_value\">(.+?)<\/span>.+?\"/ .
+                 qr/rtm_tags_value\">(.+?)<\/span>.+?\"/ .
+                 qr/rtm_location_value\">(.+?)<\/span>.+?\"/ .
+                 qr/rtm_postponed_value\">(.+?)<\/span>.+?\"/ .
+                 qr/rtm_list_value\">(.+?)<\/span>.+?<\/entry>/;
 
-    # Loop through elements in entry, look for necessary task info
-    while ($entry = $entry->next_elt()) {
-        if (defined $title and defined $delta and defined $due and
-            defined $est and defined $pri and defined $list and
-            defined $loc and defined $tags) {
-            # Push new task onto list - list is sorted by due date already
-            push(@tasks, {
-                    title => $title,
-                    delta => $delta,
-                    due => $due,
-                    estimate => $est,
-                    priority => $pri,
-                    list => $list,
-                    location => $loc,
-                    tags => $tags
-                });
-            $title = $due = $day = $delta = $tags = $loc =
-                                                $list = $pri = $est = undef;
+    while ($xml =~ /$rtm_re/g) {
+        my $title = decode_entities($1);
+        my $due = ($2 ? $2 : '');
+        my $pri = ($3 ? $3 : '');
+        my $est = ($4 ? $4 : '');
+        my $tags = ($5 ?$5 : '');
+        my $loc = ($6 ? $6 : '');
+        my $post = ($7 ? $7 : '');
+        my $list = ($8 ? $8 : '');
+
+        my ($day, $delta, $due_time, @d);
+        # Check for full due date, with time
+        if ($due =~ /:/) {
+            $day = $strp1->parse_datetime($due);
+            $due = $strp4->format_datetime($day);
+            @d = split(/ /, $strp3->format_datetime($day));
+            $delta = Date_to_Days($d[0], $d[1], $d[2]) - $today;
+            $due_time = $day->hour()*60 + $day->minute();
+            if ($delta < 0 or
+                ($delta == 0 and
+                    ($due_time - $now) < 0)) {
+                $delta = "od";
+            }
+        }
+        elsif ($due eq "never") {
+            $delta = "inf";
+            $due = "none";
+        }
+        # Short due date, without time
+        else {
+            $day = $strp2->parse_datetime($due);
+            $due = $strp4->format_datetime($day);
+            @d = split(/ /, $strp3->format_datetime($day));
+            $delta = Date_to_Days($d[0], $d[1], $d[2]) - $today;
+            if ($delta < 0) {
+                $delta = "od";
+            }
+            $due = "none";
         }
 
-        # Task title
-        if ($entry->tag() eq "title") {
-            $title = decode_entities($entry->text());
-        }
-        # Task due date
-        elsif ($entry->tag() eq "span") {
-            if ($entry->att("class") eq "rtm_due_value") {
-                $due = $entry->text();
-               
-                # Check for full due date, with time
-                if ($due =~ /:/) {
-                    $day = $strp1->parse_datetime($due);
-                    $due = $strp4->format_datetime($day);
-                    @d = split(/ /, $strp3->format_datetime($day));
-                    $delta = Date_to_Days($d[0], $d[1], $d[2]) - $today;
-                    $due_time = $day->hour()*60 + $day->minute();
-                    if ($delta < 0 or
-                        ($delta == 0 and
-                            ($due_time - $now) < 0)) {
-                        $delta = "od";
-                    }
-                }
-                elsif ($due eq "never") {
-                    $delta = "inf";
-                    $due = "none";
-                }
-                # Short due date, without time
-                else {
-                    $day = $strp2->parse_datetime($due);
-                    $due = $strp4->format_datetime($day);
-                    @d = split(/ /, $strp3->format_datetime($day));
-                    $delta = Date_to_Days($d[0], $d[1], $d[2]) - $today;
-                    if ($delta < 0) {
-                        $delta = "od";
-                    }
-                    $due = "none";
-                }
-            }
-            # Task time estimate
-            elsif ($entry->att("class") eq "rtm_time_estimate_value") {
-                $est = $entry->text();
-            }
-            # Task list
-            elsif ($entry->att("class") eq "rtm_list_value") {
-                $list = $entry->text();
-            }
-            # Task location
-            elsif ($entry->att("class") eq "rtm_location_value") {
-                $loc = $entry->text();
-            }
-            # Task priority
-            elsif ($entry->att("class") eq "rtm_priority_value") {
-                $pri = $entry->text();
-            }
-            # Task tags
-            elsif ($entry->att("class") eq "rtm_tags_value") {
-                $tags = $entry->text();
-            }
-        }
+        push(@tasks, {
+                title => $title,
+                delta => $delta,
+                due => $due,
+                estimate => $est,
+                priority => $pri,
+                list => $list,
+                location => $loc,
+                tags => $tags
+            });
     }
 }
 
