@@ -21,8 +21,8 @@
 #   Note: These modules may be available through user repositories
 # -----------------------------------------------------------------------------
 
-use warnings;
 use strict;
+use warnings;
 use Pod::Usage;
 use HTML::Entities;
 use Getopt::Long qw(:config pass_through);
@@ -31,19 +31,18 @@ use Date::Calc qw(Today_and_Now Date_to_Days Add_Delta_Days Day_of_Week
 use DateTime::Format::Strptime;
 
 # Initializations
-my ($user, $pass, $days, $black_lists, $white_lists, $inc_tags, $exc_tags,
-    $priorities, $strp1, $strp2, $strp3, $strp4, $help, $man);
-our ($hcolor, $hindent, $tcolor, $tindent, $time, $estimate, $priority,
-     $alignr, $eindent, $overdue, $miltime, $alignc, $font, @tasks, $location,
-     @wtags, @btags, @wlists, @blists, $not_due, @pri_list, $noheaders);
+my ($user, $pass, $days, $time, $tcolor, $hcolor, $tindent, $hindent, $eindent,
+    $alignr, $alignc, $font, $not_due, $inc_tags, $exc_tags, $white_lists,
+    $black_lists, $location, $estimate, $priority, $priorities, $help, $man,
+    $overdue, $noheaders, $miltime, @tasks);
 
-$tcolor = $hcolor = $hindent = $tindent = $eindent = '';
-
+$tcolor = $hcolor = '';
+$hindent = $tindent = $eindent = 0;
 
 # Get integer equivalent of today's date
-our ($ano, $mes, $dia, $hora, $minuto, $segundo) = Today_and_Now();
-our $today = Date_to_Days($ano, $mes, $dia);
-our $now = $hora * 60 + $minuto;
+my ($ano, $mes, $dia, $hora, $minuto) = Today_and_Now();
+my $today = Date_to_Days($ano, $mes, $dia);
+my $now = $hora * 60 + $minuto;
 
 # Get all options from command line
 GetOptions(
@@ -53,9 +52,9 @@ GetOptions(
     "t|time" => \$time,
     "tcolor=s" => \$tcolor,
     "hcolor=s" => \$hcolor,
-    "tindent=s" => \$tindent,
-    "hindent=s" => \$hindent,
-    "eindent=s" => \$eindent,
+    "tindent=i" => \$tindent,
+    "hindent=i" => \$hindent,
+    "eindent=i" => \$eindent,
     "r|alignr" => \$alignr,
     "c|alignc" => \$alignc,
     "f|font=s" => \$font,
@@ -76,73 +75,65 @@ GetOptions(
 );
 
 # Check for required inputs
-pod2usage(-verbose => 2) && exit if $man;
-pod2usage(-verbose => 1) && exit if ($help or not defined $user or
-                                     not defined $pass or defined $ARGV[0]);
+pod2usage(-verbose => 2) and exit if $man;
+pod2usage(-verbose => 1) and exit if ($help or not $user or not $pass or @ARGV);
 
 # Fix color representation
-if ($tcolor ne '') {
-    if ($tcolor =~ /^color\d$/) {
-        $tcolor = "\${$tcolor}";
-    }
-    else {
-        $tcolor = "\${color $tcolor}";
-    }
+if ($tcolor =~ /^color\d$/) {
+    $tcolor = "\${$tcolor}";
 }
-if ($hcolor ne '') {
-    if ($hcolor =~ /^color\d$/) {
-        $hcolor = "\${$hcolor}";
-    }
-    else {
-        $hcolor = "\${color $hcolor}";
-    }
+elsif ($tcolor ne '') {
+    $tcolor = "\${color $tcolor}";
+}
+
+if ($hcolor =~ /^color\d$/) {
+    $hcolor = "\${$hcolor}";
+}
+elsif ($hcolor ne '') {
+    $hcolor = "\${color $hcolor}";
 }
 
 # Get atom feed
-my $wget_cmd = "wget -O - -q --no-cache --http-user=$user " .
-    "--http-password=$pass http://www.rememberthemilk.com/atom/$user/";
+my $wget_cmd = "wget -O - -q --no-cache --http-user='$user' " .
+    "--http-password='$pass' http://www.rememberthemilk.com/atom/$user/";
 my $xml = `$wget_cmd`;
-if (not defined $xml or $xml eq '') {
-    print "${hcolor}Could not connect to network.\n";
-    exit;
-}
+print "${hcolor}Could not connect to network.\n" and exit unless $xml;
 
 # Set indentations
-$tindent = ' ' x $tindent if $tindent;
-$hindent = ' ' x $hindent if $hindent;
-$eindent = ' ' x $eindent if $eindent;
+$tindent = ($tindent > 0 ? ' ' x $tindent : '');
+$hindent = ($hindent > 0 ? ' ' x $hindent : '');
+$eindent = ($eindent > 0 ? ' ' x $eindent : '');
 
 # Long date format from atom feed -- DON'T CHANGE!!
-$strp1 = new DateTime::Format::Strptime(pattern => '%a %d %b %y at %I:%M%p');
+my $strp1 = new DateTime::Format::Strptime(pattern => '%a %d %b %y at %I:%M%p');
 # Short date format from atom feed -- DON'T CHANGE!!
-$strp2 = new DateTime::Format::Strptime(pattern => '%a %d %b %y');
+my $strp2 = new DateTime::Format::Strptime(pattern => '%a %d %b %y');
 # Format used with Date::Calc -- DON'T CHANGE!!
-$strp3 = new DateTime::Format::Strptime(pattern => '%Y %m %d');
+my $strp3 = new DateTime::Format::Strptime(pattern => '%Y %m %d');
 # Format for due date/time printing in conky
-my $pat = defined $miltime ? '%R' : '%I:%M%P';
-$strp4 = new DateTime::Format::Strptime(pattern => $pat);
+my $pat = (defined $miltime ? '%R' : '%I:%M%P');
+my $strp4 = new DateTime::Format::Strptime(pattern => $pat);
 
 # Set up white tags
-@wtags = split(/,/, $inc_tags) if defined $inc_tags;
+my @wtags = split(/,/, $inc_tags) if defined $inc_tags;
 
 # Set up black tags
-@btags = split(/,/, $exc_tags) if defined $exc_tags;
+my @btags = split(/,/, $exc_tags) if defined $exc_tags;
 
 # Set up white lists
-@wlists = split(/,/, $white_lists) if defined $white_lists;
+my @wlists = split(/,/, $white_lists) if defined $white_lists;
 
 # Set up black lists
-@blists = split(/,/, $black_lists) if defined $black_lists;
+my @blists = split(/,/, $black_lists) if defined $black_lists;
 
 # Set up priority list
-@pri_list = split(/,/, $priorities) if defined $priorities;
+my @pri_list = split(/,/, $priorities) if defined $priorities;
 
 # Parse atom feed
 &parse($xml);
 
 # Check for font settings
 print "\${font $font}" if defined $font;
-
 
 # Get tasks
 &get_tasks('od') if $overdue;
@@ -154,17 +145,18 @@ foreach (0 .. ($days - 1)) {
 
 # Parses atom feed
 sub parse {
-    my $rtm_re = qr/<entry>.+?<title type=\"html\">(.+?)<\/title>.+?\"/ .
-                 qr/rtm_due_value\">(.+?)<\/span>.+?\"/ .
-                 qr/rtm_priority_value\">(.+?)<\/span>.+?\"/ .
-                 qr/rtm_time_estimate_value\">(.+?)<\/span>.+?\"/ .
-                 qr/rtm_tags_value\">(.+?)<\/span>.+?\"/ .
-                 qr/rtm_location_value\">(.+?)<\/span>.+?\"/ .
-                 qr/rtm_postponed_value\">(.+?)<\/span>.+?\"/ .
-                 qr/rtm_list_value\">(.+?)<\/span>.+?<\/entry>/;
+    my $rtm_re = qr/<entry>.+?<title type=\"html\">\s*(.+?)\s*<\/title>.+?\"/ .
+                 qr/rtm_due_value\">\s*(.+?)\s*<\/span>.+?\"/ .
+                 qr/rtm_priority_value\">\s*(.+?)\s*<\/span>.+?\"/ .
+                 qr/rtm_time_estimate_value\">\s*(.+?)\s*<\/span>.+?\"/ .
+                 qr/rtm_tags_value\">\s*(.+?)\s*<\/span>.+?\"/ .
+                 qr/rtm_location_value\">\s*(.+?)\s*<\/span>.+?\"/ .
+                 qr/rtm_postponed_value\">\s*(.+?)\s*<\/span>.+?\"/ .
+                 qr/rtm_list_value\">\s*(.+?)\s*<\/span>.+?<\/entry>/;
 
+    # loop over entry tags
     while ($xml =~ /$rtm_re/g) {
-        my $title = decode_entities($1);
+        my $title = ($1 ? decode_entities($1) : '');
         my $due = ($2 ? $2 : '');
         my $pri = ($3 ? $3 : '');
         my $est = ($4 ? $4 : '');
@@ -173,34 +165,31 @@ sub parse {
         my $post = ($7 ? $7 : '');
         my $list = ($8 ? $8 : '');
 
-        my ($day, $delta, $due_time, @d);
+        my $delta;
         # Check for full due date, with time
-        if ($due =~ /:/) {
-            $day = $strp1->parse_datetime($due);
-            $due = $strp4->format_datetime($day);
-            @d = split(/ /, $strp3->format_datetime($day));
-            $delta = Date_to_Days($d[0], $d[1], $d[2]) - $today;
-            $due_time = $day->hour()*60 + $day->minute();
-            if ($delta < 0 or
-                ($delta == 0 and
-                    ($due_time - $now) < 0)) {
-                $delta = "od";
-            }
+        if ($due eq 'never') {
+            $delta = 'inf';
+            $due = 'none';
         }
-        elsif ($due eq "never") {
-            $delta = "inf";
-            $due = "none";
-        }
-        # Short due date, without time
         else {
-            $day = $strp2->parse_datetime($due);
-            $due = $strp4->format_datetime($day);
+            my ($day, $due_time, @d);
+            if ($due =~ /:/) {
+                $day = $strp1->parse_datetime($due);
+                $due_time = $day->hour() * 60 + $day->minute();
+                $due = $strp4->format_datetime($day);
+            }
+            # Short due date, without time
+            else {
+                $day = $strp2->parse_datetime($due);
+                $due_time = $now;
+                $due = "none";
+            }
+
             @d = split(/ /, $strp3->format_datetime($day));
             $delta = Date_to_Days($d[0], $d[1], $d[2]) - $today;
-            if ($delta < 0) {
+            if ($delta < 0 or ($delta == 0 and ($due_time - $now) < 0)) {
                 $delta = "od";
             }
-            $due = "none";
         }
 
         push(@tasks, {
@@ -221,9 +210,9 @@ sub get_tasks {
     my $delta = shift;
     my $count = 0;
 
-    our $date = defined $noheaders ? '' : &format_header($delta);
+    my $date = (defined $noheaders ? '' : &format_header($delta));
 
-    # Loop over all tasks in hash map
+    # Loop over all tasks in list
     for my $task (@tasks) {
         # Define flag: 0 = keep, 1 = discard
         my $flag = 0;
@@ -231,34 +220,34 @@ sub get_tasks {
         # Check if task is in time range
         if ($task->{'delta'} eq $delta) {
             # Check if task matches black list
-            if ($#blists != -1) {
+            if (@blists) {
                 foreach (@blists) {
                     $flag = 1 if lc eq lc($task->{'list'});
                 }
             }
-            next if $flag == 1;
+            next if $flag;
 
             # Check if task matches white list
-            if ($#wlists != -1) {
+            if (@wlists) {
                 $flag = 1;
                 foreach (@wlists) {
                     $flag = 0 if lc eq lc($task->{'list'});
                 }
             }
-            next if $flag == 1;
+            next if $flag;
 
             # Check if task matches black tag list
-            if ($#btags != -1) {
+            if (@btags) {
                 foreach my $btag (@btags) {
                     foreach (split(/,/, $task->{'tags'})) {
                         $flag = 1 if lc($btag) eq lc;
                     }
                 }
             }
-            next if $flag == 1;
+            next if $flag;
 
             # Check if task matches white tag list
-            if ($#wtags != -1) {
+            if (@wtags) {
                 $flag = 1;
                 foreach my $wtag (@wtags) {
                     foreach (split(/,/, $task->{'tags'})) {
@@ -266,16 +255,16 @@ sub get_tasks {
                     }
                 }
             }
-            next if $flag == 1;
+            next if $flag;
 
             # Check if task matches priority list
-            if ($#pri_list != -1) {
+            if (@pri_list) {
                 $flag = 1;
                 foreach (@pri_list) {
                     $flag = 0 if lc eq lc($task->{'priority'});
                 }
             }
-            next if $flag == 1;
+            next if $flag;
 
             # Flag was never set - print task
             ++$count;
@@ -339,6 +328,7 @@ sub get_tasks {
                     $str .= "${eindent}${estr}\n";
                 }
             }
+            # Print header if this is the first task
             if ($count == 1) {
               $str = "${date}${str}";
             }
@@ -368,7 +358,7 @@ sub format_header {
         my ($year, $month, $day) = Add_Delta_Days($ano, $mes, $dia, $delta);
         $str = $hcolor . sprintf("Tasks Due on %s, %.3s %s:",
                                     Day_of_Week_Abbreviation(
-                                        Day_of_Week($year,$month,$day)),
+                                        Day_of_Week($year, $month, $day)),
                                     Month_to_Text($month),
                                     English_Ordinal($day));
     }
