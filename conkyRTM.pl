@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # -----------------------------------------------------------------------------
 # Copyright (C) 2010 Mike Stegeman <mrstegeman@gmail.com>
-# Last Revision: Oct 29, 2010
+# Last Revision: Oct 30, 2010
 # -----------------------------------------------------------------------------
 #
 # Description:
@@ -111,29 +111,21 @@ my $strp2 = new DateTime::Format::Strptime(pattern => '%a %d %b %y');
 # Format used with Date::Calc -- DON'T CHANGE!!
 my $strp3 = new DateTime::Format::Strptime(pattern => '%Y %m %d');
 # Format for due date/time printing in conky
-my $pat = (defined $miltime ? '%R' : '%I:%M%P');
+my $pat = ($miltime ? '%R' : '%I:%M%P');
 my $strp4 = new DateTime::Format::Strptime(pattern => $pat);
 
-# Set up white tags
-my @wtags = split(/,/, $inc_tags) if defined $inc_tags;
-
-# Set up black tags
-my @btags = split(/,/, $exc_tags) if defined $exc_tags;
-
-# Set up white lists
-my @wlists = split(/,/, $white_lists) if defined $white_lists;
-
-# Set up black lists
-my @blists = split(/,/, $black_lists) if defined $black_lists;
-
-# Set up priority list
-my @pri_list = split(/,/, $priorities) if defined $priorities;
+# Set up white/black tags, white/black lists, and priority list
+my @wtags = split(/,/, $inc_tags) if $inc_tags;
+my @btags = split(/,/, $exc_tags) if $exc_tags;
+my @wlists = split(/,/, $white_lists) if $white_lists;
+my @blists = split(/,/, $black_lists) if $black_lists;
+my @pri_list = split(/,/, $priorities) if $priorities;
 
 # Parse atom feed
 &parse($xml);
 
 # Check for font settings
-print "\${font $font}" if defined $font;
+print "\${font $font}" if $font;
 
 # Get tasks
 &get_tasks('od') if $overdue;
@@ -157,22 +149,23 @@ sub parse {
     # loop over entry tags
     while ($xml =~ /$rtm_re/g) {
         my $title = ($1 ? decode_entities($1) : '');
-        my $due = ($2 ? $2 : '');
-        my $pri = ($3 ? $3 : '');
-        my $est = ($4 ? $4 : '');
-        my $tags = ($5 ?$5 : '');
-        my $loc = ($6 ? $6 : '');
-        my $post = ($7 ? $7 : '');
-        my $list = ($8 ? $8 : '');
+        my $due = ($2 ? decode_entities($2) : '');
+        my $pri = ($3 ? decode_entities($3) : '');
+        my $est = ($4 ? decode_entities($4) : '');
+        my $tags = ($5 ? decode_entities($5) : '');
+        my $loc = ($6 ? decode_entities($6) : '');
+        my $post = ($7 ? decode_entities($7) : '');
+        my $list = ($8 ? decode_entities($8) : '');
 
         my $delta;
-        # Check for full due date, with time
+        # Check for no due date
         if ($due eq 'never') {
             $delta = 'inf';
             $due = 'none';
         }
         else {
             my ($day, $due_time, @d);
+            # Full due date, with time
             if ($due =~ /:/) {
                 $day = $strp1->parse_datetime($due);
                 $due_time = $day->hour() * 60 + $day->minute();
@@ -210,7 +203,7 @@ sub get_tasks {
     my $delta = shift;
     my $count = 0;
 
-    my $date = (defined $noheaders ? '' : &format_header($delta));
+    my $date = ($noheaders ? '' : &format_header($delta));
 
     # Loop over all tasks in list
     for my $task (@tasks) {
@@ -329,10 +322,7 @@ sub get_tasks {
                 }
             }
             # Print header if this is the first task
-            if ($count == 1) {
-              $str = "${date}${str}";
-            }
-            print $str;
+            $count == 1 ? print "${date}${str}" : print $str;
         }
     }
 }
@@ -340,7 +330,7 @@ sub get_tasks {
 # Format task day header
 sub format_header {
     my $delta = shift;
-    my $str = '';
+    my $str;
 
     if ($delta eq "inf") {
         $str = "${hcolor}Other Tasks:";
@@ -365,16 +355,14 @@ sub format_header {
 
     # Check for alignment
     if ($alignr) {
-        $str = "\${alignr}${str}${hindent}\n";
+        return "\${alignr}${str}${hindent}\n";
     }
     elsif ($alignc) {
-        $str = "\${alignc}${str}\n";
+        return "\${alignc}${str}\n";
     }
     else {
-        $str = "${hindent}${str}\n";
+        return "${hindent}${str}\n";
     }
-
-    return $str;
 }
 
 __END__
