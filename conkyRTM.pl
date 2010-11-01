@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # -----------------------------------------------------------------------------
 # Copyright (C) 2010 Mike Stegeman <mrstegeman@gmail.com>
-# Last Revision: Oct 30, 2010
+# Last Revision: Nov 1, 2010
 # -----------------------------------------------------------------------------
 #
 # Description:
@@ -46,32 +46,32 @@ my $now = $hora * 60 + $minuto;
 
 # Get all options from command line
 GetOptions(
-    "u|user=s" => \$user,
-    "p|pass=s" => \$pass,
-    "d|days=s" => \$days,
-    "t|time" => \$time,
-    "tcolor=s" => \$tcolor,
-    "hcolor=s" => \$hcolor,
-    "tindent=i" => \$tindent,
-    "hindent=i" => \$hindent,
-    "eindent=i" => \$eindent,
-    "r|alignr" => \$alignr,
-    "c|alignc" => \$alignc,
-    "f|font=s" => \$font,
-    "n|not-due" => \$not_due,
-    "include-tags=s" => \$inc_tags,
-    "ignore-tags=s" => \$exc_tags,
-    "white-lists=s" => \$white_lists,
-    "black-lists=s" => \$black_lists,
-    "l|location" => \$location,
-    "e|estimate" => \$estimate,
-    "y|priority" => \$priority,
-    "priorities=s" => \$priorities,
-    "h|help" => \$help,
-    "m|man" => \$man,
-    "o|overdue" => \$overdue,
-    "no-headers" => \$noheaders,
-    "24-hour" => \$miltime,
+    'u|user=s' => \$user,
+    'p|pass=s' => \$pass,
+    'd|days=s' => \$days,
+    't|time' => \$time,
+    'tcolor=s' => \$tcolor,
+    'hcolor=s' => \$hcolor,
+    'tindent=i' => \$tindent,
+    'hindent=i' => \$hindent,
+    'eindent=i' => \$eindent,
+    'r|alignr' => \$alignr,
+    'c|alignc' => \$alignc,
+    'f|font=s' => \$font,
+    'n|not-due' => \$not_due,
+    'include-tags=s' => \$inc_tags,
+    'ignore-tags=s' => \$exc_tags,
+    'white-lists=s' => \$white_lists,
+    'black-lists=s' => \$black_lists,
+    'l|location' => \$location,
+    'e|estimate' => \$estimate,
+    'y|priority' => \$priority,
+    'priorities=s' => \$priorities,
+    'h|help' => \$help,
+    'm|man' => \$man,
+    'o|overdue' => \$overdue,
+    'no-headers' => \$noheaders,
+    '24-hour' => \$miltime,
 );
 
 # Check for required inputs
@@ -115,11 +115,11 @@ my $pat = ($miltime ? '%R' : '%I:%M%P');
 my $strp4 = new DateTime::Format::Strptime(pattern => $pat);
 
 # Set up white/black tags, white/black lists, and priority list
-my @wtags = split(/,/, $inc_tags) if $inc_tags;
-my @btags = split(/,/, $exc_tags) if $exc_tags;
-my @wlists = split(/,/, $white_lists) if $white_lists;
-my @blists = split(/,/, $black_lists) if $black_lists;
-my @pri_list = split(/,/, $priorities) if $priorities;
+my %wtags = map {lc($_) => 1} split(/,/, $inc_tags) if $inc_tags;
+my %btags = map {lc($_) => 1} split(/,/, $exc_tags) if $exc_tags;
+my %wlists = map {lc($_) => 1} split(/,/, $white_lists) if $white_lists;
+my %blists = map {lc($_) => 1} split(/,/, $black_lists) if $black_lists;
+my %pri_list = map {lc($_) => 1} split(/,/, $priorities) if $priorities;
 
 # Parse atom feed
 &parse($xml);
@@ -128,11 +128,10 @@ my @pri_list = split(/,/, $priorities) if $priorities;
 print "\${font $font}" if $font;
 
 # Get tasks
-&get_tasks('od') if $overdue;
-foreach (0 .. ($days - 1)) {
-    &get_tasks($_);
-}
-&get_tasks('inf') if $not_due;
+my @daylist = (0 .. --$days);
+unshift(@daylist, 'od') if $overdue;
+push(@daylist, 'inf') if $not_due;
+map(&get_tasks($_), @daylist);
 
 
 # Parses atom feed
@@ -161,7 +160,6 @@ sub parse {
         # Check for no due date
         if ($due eq 'never') {
             $delta = 'inf';
-            $due = 'none';
         }
         else {
             my ($day, $due_time, @d);
@@ -175,13 +173,13 @@ sub parse {
             else {
                 $day = $strp2->parse_datetime($due);
                 $due_time = $now;
-                $due = "none";
+                $due = 'never';
             }
 
             @d = split(/ /, $strp3->format_datetime($day));
             $delta = Date_to_Days($d[0], $d[1], $d[2]) - $today;
             if ($delta < 0 or ($delta == 0 and ($due_time - $now) < 0)) {
-                $delta = "od";
+                $delta = 'od';
             }
         }
 
@@ -202,127 +200,59 @@ sub parse {
 sub get_tasks {
     my $delta = shift;
     my $count = 0;
-
+    my ($flag, $str);
     my $date = ($noheaders ? '' : &format_header($delta));
 
     # Loop over all tasks in list
+    TASK:
     for my $task (@tasks) {
-        # Define flag: 0 = keep, 1 = discard
-        my $flag = 0;
-
         # Check if task is in time range
         if ($task->{'delta'} eq $delta) {
             # Check if task matches black list
-            if (@blists) {
-                foreach (@blists) {
-                    $flag = 1 if lc eq lc($task->{'list'});
-                }
-            }
-            next if $flag;
-
+            next TASK if $blists{lc($task->{'list'})};
             # Check if task matches white list
-            if (@wlists) {
-                $flag = 1;
-                foreach (@wlists) {
-                    $flag = 0 if lc eq lc($task->{'list'});
-                }
+            if (keys(%wlists)) {
+                next TASK unless $wlists{lc($task->{'list'})};
             }
-            next if $flag;
-
             # Check if task matches black tag list
-            if (@btags) {
-                foreach my $btag (@btags) {
-                    foreach (split(/,/, $task->{'tags'})) {
-                        $flag = 1 if lc($btag) eq lc;
-                    }
-                }
+            foreach (split(/,/, $task->{'tags'})) {
+                next TASK if $btags{lc($_)};
             }
-            next if $flag;
-
             # Check if task matches white tag list
-            if (@wtags) {
+            if (keys(%wtags)) {
                 $flag = 1;
-                foreach my $wtag (@wtags) {
-                    foreach (split(/,/, $task->{'tags'})) {
-                        $flag = 0 if lc($wtag) eq lc;
-                    }
-                }
+                map {$flag = 0 if $wtags{lc($_)}} split(/,/, $task->{'tags'});
+                next TASK if $flag;
             }
-            next if $flag;
-
             # Check if task matches priority list
-            if (@pri_list) {
-                $flag = 1;
-                foreach (@pri_list) {
-                    $flag = 0 if lc eq lc($task->{'priority'});
-                }
+            if (keys(%pri_list)) {
+                next TASK unless $pri_list{lc($task->{'priority'})};
             }
-            next if $flag;
 
             # Flag was never set - print task
             ++$count;
-            my $str = $tcolor;
+            $str = $tcolor;
             # Check if user wants due times
-            if ($time and $task->{'due'} ne "none" and
-                $task->{'delta'} ne "od") {
+            if ($time and $task->{'due'} ne 'never' and
+                $task->{'delta'} ne 'od') {
 
                 $str .= "$task->{'due'} - ";
             }
-            $str .= $task->{'title'};
-            # Check for alignment
-            if ($alignc) {
-                $str = "\${alignc}$str\n";
-            }
-            elsif ($alignr) {
-                $str = "\${alignr}${str}${tindent}\n";
-            }
-            else {
-                $str = "${tindent}${str}\n";
-            }
+            $str = &align_text($str . $task->{'title'}, $tindent);
             # Check if user wants locations
             if ($location) {
-                my $estr = "Location: $task->{'location'}";
-                # Check for alignment
-                if ($alignc) {
-                    $str .= "\${alignc}$estr\n";
-                }
-                elsif ($alignr) {
-                    $str .= "\${alignr}${estr}${eindent}\n";
-                }
-                else {
-                    $str .= "${eindent}${estr}\n";
-                }
+                $str .= &align_text("Location: $task->{'location'}", $eindent);
             }
             # Check if user wants estimates
             if ($estimate) {
-                my $estr = "Estimate: $task->{'estimate'}";
-                # Check for alignment
-                if ($alignc) {
-                    $str .= "\${alignc}$estr\n";
-                }
-                elsif ($alignr) {
-                    $str .= "\${alignr}${estr}${eindent}\n";
-                }
-                else {
-                    $str .= "${eindent}${estr}\n";
-                }
+                $str .= &align_text("Estimate: $task->{'estimate'}", $eindent);
             }
             # Check if user wants priorities
             if ($priority) {
-                my $estr = "Priority: $task->{'priority'}";
-                # Check for alignment
-                if ($alignc) {
-                    $str .= "\${alignc}$estr\n";
-                }
-                elsif ($alignr) {
-                    $str .= "\${alignr}${estr}${eindent}\n";
-                }
-                else {
-                    $str .= "${eindent}${estr}\n";
-                }
+                $str .= &align_text("Priority: $task->{'priority'}", $eindent);
             }
             # Print header if this is the first task
-            $count == 1 ? print "${date}${str}" : print $str;
+            print ($count == 1 ? "${date}${str}" : $str);
         }
     }
 }
@@ -332,10 +262,10 @@ sub format_header {
     my $delta = shift;
     my $str;
 
-    if ($delta eq "inf") {
+    if ($delta eq 'inf') {
         $str = "${hcolor}Other Tasks:";
     }
-    elsif ($delta eq "od") {
+    elsif ($delta eq 'od') {
         $str = "${hcolor}Overdue Tasks:";
     }
     elsif ($delta == 0) {
@@ -346,22 +276,28 @@ sub format_header {
     }
     else {
         my ($year, $month, $day) = Add_Delta_Days($ano, $mes, $dia, $delta);
-        $str = $hcolor . sprintf("Tasks Due on %s, %.3s %s:",
+        $str = $hcolor . sprintf('Tasks Due on %s, %.3s %s:',
                                     Day_of_Week_Abbreviation(
                                         Day_of_Week($year, $month, $day)),
                                     Month_to_Text($month),
                                     English_Ordinal($day));
     }
 
-    # Check for alignment
-    if ($alignr) {
-        return "\${alignr}${str}${hindent}\n";
-    }
-    elsif ($alignc) {
+    return &align_text($str, $hindent);
+}
+
+# Aligns and indents text
+sub align_text {
+    my ($str, $indent) = @_;
+
+    if ($alignc) {
         return "\${alignc}${str}\n";
     }
+    elsif ($alignr) {
+        return "\${alignr}${str}${indent}\n";
+    }
     else {
-        return "${hindent}${str}\n";
+        return "${indent}${str}\n";
     }
 }
 
@@ -430,16 +366,15 @@ __END__
                          list1,list2,list3
  --priorities=PRIORITIES Include only tasks matching specified priorities
                          in output. PRIORITIES is a comma separated list.
-                         Valid priorities are pri1, pri2, pri3, none
+                         Valid priorities are 1, 2, 3, and none
  --no-headers            Don't show day headers.
- -l, --location          Show location of tasks in output
  --24-hour               Show due times in 24 hour format
  -h, --help              Print this text and exit
  -m, --man               Print full documentation
 
 =head1 AUTHOR
 
- Mike Stegeman
+ Mike Stegeman <mrstegeman@gmail.com>
 
 =head1 LICENSE
 
