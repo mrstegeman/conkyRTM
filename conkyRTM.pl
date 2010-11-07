@@ -146,17 +146,17 @@ sub parse {
                  qr/rtm_list_value\">\s*(.+?)\s*<\/span>.+?<\/entry>/;
 
     # loop over entry tags
+    my ($title, $due, $pri, $est, $tags, $log, $post, $list, $delta);
     while ($xml =~ /$rtm_re/g) {
-        my $title = ($1 ? decode_entities($1) : '');
-        my $due = ($2 ? decode_entities($2) : '');
-        my $pri = ($3 ? decode_entities($3) : '');
-        my $est = ($4 ? decode_entities($4) : '');
-        my $tags = ($5 ? decode_entities($5) : '');
-        my $loc = ($6 ? decode_entities($6) : '');
-        my $post = ($7 ? decode_entities($7) : '');
-        my $list = ($8 ? decode_entities($8) : '');
+        $title = ($1 ? decode_entities($1) : '');
+        $due = ($2 ? decode_entities($2) : '');
+        $pri = ($3 ? decode_entities($3) : '');
+        $est = ($4 ? decode_entities($4) : '');
+        $tags = ($5 ? decode_entities($5) : '');
+        $loc = ($6 ? decode_entities($6) : '');
+        $post = ($7 ? decode_entities($7) : '');
+        $list = ($8 ? decode_entities($8) : '');
 
-        my $delta;
         # Check for no due date
         if ($due eq 'never') {
             $delta = 'inf';
