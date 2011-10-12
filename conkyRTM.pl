@@ -97,6 +97,7 @@ elsif ($hcolor ne '') {
 my $wget_cmd = "wget -O - -q --no-cache --http-user='$user' " .
     "--http-password='$pass' http://www.rememberthemilk.com/atom/$user/";
 my $xml = `$wget_cmd`;
+$xml =~ s/\n//g;
 print "${hcolor}Could not connect to network.\n" and exit unless $xml;
 
 # Set indentations
@@ -146,7 +147,7 @@ sub parse {
                  qr/rtm_list_value\">\s*(.+?)\s*<\/span>.+?<\/entry>/;
 
     # loop over entry tags
-    my ($title, $due, $pri, $est, $tags, $log, $post, $list, $delta);
+    my ($title, $due, $pri, $est, $tags, $loc, $post, $list, $delta);
     while ($xml =~ /$rtm_re/g) {
         $title = ($1 ? decode_entities($1) : '');
         $due = ($2 ? decode_entities($2) : '');
