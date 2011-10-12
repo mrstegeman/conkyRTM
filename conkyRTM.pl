@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 # -----------------------------------------------------------------------------
-# Copyright (C) 2010 Mike Stegeman <mrstegeman@gmail.com>
-# Last Revision: Nov 1, 2010
+# Copyright (C) 2011 Mike Stegeman <mrstegeman@gmail.com>
+# Last Revision: Oct 12, 2011
 # -----------------------------------------------------------------------------
 #
 # Description:
