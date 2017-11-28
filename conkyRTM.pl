@@ -31,7 +31,7 @@ use Date::Calc qw(Today_and_Now Date_to_Days Add_Delta_Days Day_of_Week
 use DateTime::Format::Strptime;
 
 # Initializations
-my ($user, $pass, $days, $time, $tcolor, $hcolor, $tindent, $hindent, $eindent,
+my ($atom_url, $days, $time, $tcolor, $hcolor, $tindent, $hindent, $eindent,
     $alignr, $alignc, $font, $not_due, $inc_tags, $exc_tags, $white_lists,
     $black_lists, $location, $estimate, $priority, $priorities, $help, $man,
     $overdue, $noheaders, $miltime, @tasks);
@@ -46,8 +46,7 @@ my $now = $hora * 60 + $minuto;
 
 # Get all options from command line
 GetOptions(
-    'u|user=s' => \$user,
-    'p|pass=s' => \$pass,
+    'u|url=s' => \$atom_url,
     'd|days=s' => \$days,
     't|time' => \$time,
     'tcolor=s' => \$tcolor,
@@ -76,7 +75,7 @@ GetOptions(
 
 # Check for required inputs
 pod2usage(-verbose => 2) and exit if $man;
-pod2usage(-verbose => 1) and exit if ($help or not $user or not $pass or @ARGV);
+pod2usage(-verbose => 1) and exit if ($help or not $atom_url or @ARGV);
 
 # Fix color representation
 if ($tcolor =~ /^color\d$/) {
@@ -94,8 +93,7 @@ elsif ($hcolor ne '') {
 }
 
 # Get atom feed
-my $wget_cmd = "wget -O - -q --no-cache --http-user='$user' " .
-    "--http-password='$pass' http://www.rememberthemilk.com/atom/$user/";
+my $wget_cmd = "wget -O - -q --no-cache '$atom_url'";
 my $xml = `$wget_cmd`;
 $xml =~ s/\n//g;
 print "${hcolor}Could not connect to network.\n" and exit unless $xml;
@@ -310,7 +308,7 @@ __END__
 
 =head1 SYNOPSIS
 
- ./conkyRTM.pl -u USER -p PASSWORD [options]
+ ./conkyRTM.pl -u ATOM_URL [options]
 
 =head1 DESCRIPTION
 
@@ -322,8 +320,7 @@ __END__
 
 =head1 ARGUMENTS
 
- -u USER, --user=USER           Specifies the username to be used for RTM
- -p PASSWORD, --pass=PASSWORD   Specifies the password to be used for RTM
+ -u URL, --url=URL       Specifies the Atom URL to be used for RTM
 
 =head1 OPTIONS
 
